@@ -9,6 +9,7 @@ import (
 	"github.com/dkr290/go-url-shortener/helpers"
 	"github.com/go-redis/redis/v8"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/internal/uuid"
 )
 
 type Request struct {
@@ -78,6 +79,26 @@ func ShortenURL(ctx *fiber.Ctx) error {
 	//enforce https, SSL
 
 	body.URL = helpers.EnforceHTTPS(body.URL)
+
+	var id string
+
+	if body.CustomShort == "" {
+		id = uuid.New().String()[:6]
+	} else {
+		id = body.CustomShort
+	}
+	rcl0 := database.CreateClient(0)
+	defer rcl0.Close()
+
+	v, _ = rcl0.Get(database.Ctx, id).Result()
+	if v != "" {
+		return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "URL custom short is already in use",
+		})
+	}
+	if body.Expiry == 0 {
+		body.Expiry = 24
+	}
 
 	rCl.Decr(database.Ctx, ctx.IP())
 }
